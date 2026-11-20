@@ -11,7 +11,7 @@ from pathlib import Path
 import paramiko
 import pytest
 
-from deploy_butler.helper_template import render_helper, render_sudoers
+from deploy_butler.helper_template import install_steps, render_helper, render_sudoers
 from deploy_butler.ssh import CaptureRejectPolicy, HostKeyUnknown, save_host_key
 from tests.conftest import make_project
 
@@ -58,6 +58,12 @@ def test_shellcheck_and_sudoers(tmp_path):
     text = script.read_text(encoding="utf-8")
     assert "set -euo pipefail" in text
     assert "flock -n 9" in text
+    assert f"/run/lock/deploy-butler-{project.name}.lock" in text
+    assert "mktemp -d" in text
+    assert "--no-overwrite-dir" in text
+    assert "--no-same-permissions" in text
+    steps = install_steps(project)
+    assert steps[0]["command"] == "command -v sqlite3 || sudo apt-get install -y sqlite3"
     assert "printenv" not in text
     assert "set -x" not in text
     sudoers = render_sudoers(project)
@@ -116,7 +122,7 @@ def test_helper_inplace_roundtrip_and_rejects_traversal(tmp_path):
         assert "bad release" in bad_name.stderr
     finally:
         shutil.rmtree(staging, ignore_errors=True)
-        Path(f"/tmp/deploy-butler-{project.name}.lock").unlink(missing_ok=True)
+        Path(f"/run/lock/deploy-butler-{project.name}.lock").unlink(missing_ok=True)
 
 
 def test_helper_releases_switch_symlink(tmp_path):
@@ -147,7 +153,7 @@ def test_helper_releases_switch_symlink(tmp_path):
         assert (root / "releases" / "r2").is_dir()
     finally:
         shutil.rmtree(staging, ignore_errors=True)
-        Path(f"/tmp/deploy-butler-{project.name}.lock").unlink(missing_ok=True)
+        Path(f"/run/lock/deploy-butler-{project.name}.lock").unlink(missing_ok=True)
 
 
 def test_helper_sqlite_backup_roundtrip(tmp_path):
@@ -167,7 +173,7 @@ def test_helper_sqlite_backup_roundtrip(tmp_path):
     with sqlite3.connect(database) as conn:
         value = conn.execute("SELECT x FROM t").fetchone()[0]
     assert value == 1
-    Path(f"/tmp/deploy-butler-{project.name}.lock").unlink(missing_ok=True)
+    Path(f"/run/lock/deploy-butler-{project.name}.lock").unlink(missing_ok=True)
 
 
 def test_host_key_is_rejected_until_saved(tmp_path):

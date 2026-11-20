@@ -30,14 +30,19 @@ LOCK_FILE=__LOCK_FILE__
 __DB_BLOCK__
 
 TMPS=()
+DIRS=()
 cleanup() {
   local f
-  if [[ ${#TMPS[@]} -eq 0 ]]; then
-    return 0
+  if [[ ${#TMPS[@]} -gt 0 ]]; then
+    for f in "${TMPS[@]}"; do
+      rm -f -- "$f"
+    done
   fi
-  for f in "${TMPS[@]}"; do
-    rm -f -- "$f"
-  done
+  if [[ ${#DIRS[@]} -gt 0 ]]; then
+    for f in "${DIRS[@]}"; do
+      rm -rf -- "$f"
+    done
+  fi
 }
 trap cleanup EXIT
 
@@ -284,7 +289,7 @@ print_applied_hashes() {
 cmd_apply() {
   local rel="$1"
   local archive="$2"
-  local real stage backup list dest relroot
+  local real stage backup list dest relroot work copy
   need_release "$rel"
   guard_dir "$APP_DIR"
   guard_dir "$BACKUPS_DIR"
@@ -301,11 +306,17 @@ cmd_apply() {
     "$stage"/*.tar.gz) ;;
     *) die "archive outside staging" ;;
   esac
+  work="$(mktemp -d)"
+  chmod 700 -- "$work"
+  DIRS+=("$work")
+  copy="${work}/archive.tar.gz"
+  cp -- "$real" "$copy"
+  chmod 600 -- "$copy"
   backup="${BACKUPS_DIR}/${rel}.tar.gz"
   if [[ ! -f "$backup" || -L "$backup" ]]; then
     die "backup missing"
   fi
-  reject_archive_listing "$archive"
+  reject_archive_listing "$copy"
   list="$ARCHIVE_LIST"
   if [[ "$DEPLOY_MODE" == "releases" ]]; then
     relroot="$(dirname -- "$APP_DIR")/releases"
@@ -314,7 +325,7 @@ cmd_apply() {
       die "release exists"
     fi
     mkdir -p -- "$dest"
-    tar --no-same-owner -xzf "$archive" -C "$dest"
+    tar --no-same-owner --no-overwrite-dir --no-same-permissions -xzf "$copy" -C "$dest"
     if [[ -n "$APP_OWNER" ]]; then
       chown -R -- "$APP_OWNER" "$dest"
     fi
@@ -333,7 +344,7 @@ cmd_apply() {
       die "app_dir must be a directory"
     fi
     mkdir -p -- "$APP_DIR"
-    tar --no-same-owner -xzf "$archive" -C "$APP_DIR"
+    tar --no-same-owner --no-overwrite-dir --no-same-permissions -xzf "$copy" -C "$APP_DIR"
     if [[ -n "$APP_OWNER" ]]; then
       chown -R -- "$APP_OWNER" "$APP_DIR"
     fi
@@ -625,7 +636,7 @@ def render_helper(project: Project) -> str:
         "__DEPLOY_MODE__": _sq(project.deploy_mode),
         "__PROJECT__": _sq(project.name),
         "__STAGING_DIR__": _sq(project.staging_dir),
-        "__LOCK_FILE__": _sq(f"/tmp/deploy-butler-{project.name}.lock"),
+        "__LOCK_FILE__": _sq(f"/run/lock/deploy-butler-{project.name}.lock"),
         "__DB_BLOCK__": _db_block(project.db_backup_paths),
     }
     script = _BASH
@@ -655,6 +666,10 @@ def install_steps(project: Project) -> list[dict[str, str]]:
     sudoers = project.sudoers_path
     user = project.ssh_user
     return [
+        {
+            "id": "sqlite3",
+            "command": "command -v sqlite3 || sudo apt-get install -y sqlite3",
+        },
         {
             "id": "copy_helper",
             "command": f"sudo install -o root -g root -m 0755 deploy-butler-{project.name} {script}",
