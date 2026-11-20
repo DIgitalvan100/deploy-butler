@@ -1,0 +1,28 @@
+[project]
+name = "deploy-butler"
+version = "1.0.0"
+description = "Local deploy panel for your own VPS, without GitHub"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn>=0.32.0",
+  "paramiko>=3.5.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+deploy-butler = "deploy_butler.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["deploy_butler*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
