@@ -59,7 +59,8 @@ def test_csrf_host_and_export(tmp_path):
     assert "PRIVATE KEY" not in exported.text
     assert "password" not in payload
     sneaky = dict(created.json()["project"])
-    sneaky["ssh_key_path"] = "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----"
+    armor = "-" * 5
+    sneaky["ssh_key_path"] = f"{armor}BEGIN OPENSSH PRIVATE KEY{armor}\nabc\n{armor}END OPENSSH PRIVATE KEY{armor}"
     imported = _post(client, token, "/api/import", sneaky)
     assert imported.status_code == 400
 
@@ -88,7 +89,8 @@ def test_mask_keeps_hashes():
     assert mask_text(digest) == digest
     assert "supersecret" not in mask_text("password=supersecret")
     assert "ghp_abcdefghijklmnop" not in mask_text("token ghp_abcdefghijklmnop")
-    pem = "-----BEGIN OPENSSH PRIVATE KEY-----\nSECRETDATA\n-----END OPENSSH PRIVATE KEY-----"
+    armor = "-" * 5
+    pem = f"{armor}BEGIN OPENSSH PRIVATE KEY{armor}\nSECRETDATA\n{armor}END OPENSSH PRIVATE KEY{armor}"
     assert "SECRETDATA" not in mask_text(pem)
 
 

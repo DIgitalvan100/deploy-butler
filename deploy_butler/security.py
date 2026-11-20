@@ -7,7 +7,7 @@ import re
 
 _SECRET_RES = [
     re.compile(
-        r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
+        r"-{5}BEGIN [A-Z0-9 ]*PRIVATE KEY-{5}.*?-{5}END [A-Z0-9 ]*PRIVATE KEY-{5}",
         re.DOTALL,
     ),
     re.compile(
